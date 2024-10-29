@@ -124,7 +124,7 @@ mod transaction {
 mod transaction_kind {
     use super::*;
     use crate::transaction::{
-        AuthenticatorStateUpdateV1, ConsensusCommitPrologueV1, EndOfEpochTransactionKind,
+        AuthenticatorStateUpdate, ConsensusCommitPrologue, EndOfEpochTransactionKind,
         GenesisTransaction, ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
     };
 
@@ -1144,7 +1144,7 @@ mod test {
 
     use crate::{
         ObjectDigest, ObjectId, ObjectReference,
-        transaction::{Argument, Input, InputArgument, Transaction},
+        transaction::{Argument, Input, Transaction},
     };
 
     #[test]

@@ -150,7 +150,7 @@ serialization_test!(AuthenticatorStateExpire);
 serialization_test!(AuthenticatorStateUpdateV1);
 serialization_test!(ChangeEpoch);
 serialization_test!(Command);
-serialization_test!(ConsensusCommitPrologueV1);
+serialization_test!(ConsensusCommitPrologue);
 serialization_test!(CancelledTransaction);
 serialization_test!(ConsensusDeterminedVersionAssignments);
 serialization_test!(VersionAssignment);

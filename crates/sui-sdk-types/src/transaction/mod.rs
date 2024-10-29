@@ -180,7 +180,7 @@ pub struct AuthenticatorStateUpdateV1 {
     #[cfg_attr(feature = "serde", serde(with = "crate::_serde::ReadableDisplay"))]
     #[cfg_attr(feature = "schemars", schemars(with = "crate::_schemars::U64"))]
     pub authenticator_obj_initial_shared_version: u64,
-    // to version this struct, do not add new fields. Instead, add a AuthenticatorStateUpdateV2
+    // to version this struct, do not add new fields. Instead, add an AuthenticatorStateUpdate
     // to TransactionKind.
 }
 
@@ -249,7 +249,7 @@ pub struct VersionAssignment {
 )]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "proptest", derive(test_strategy::Arbitrary))]
-pub struct ConsensusCommitPrologueV1 {
+pub struct ConsensusCommitPrologue {
     /// Epoch of the commit prologue transaction
     #[cfg_attr(feature = "serde", serde(with = "crate::_serde::ReadableDisplay"))]
     #[cfg_attr(feature = "schemars", schemars(with = "crate::_schemars::U64"))]
