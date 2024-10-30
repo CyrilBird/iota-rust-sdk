@@ -206,15 +206,9 @@ pub struct MoveStruct {
 }
 
 impl MoveStruct {
-    pub fn new(
-        type_: StructTag,
-        has_public_transfer: bool,
-        version: Version,
-        contents: Vec<u8>,
-    ) -> Option<Self> {
+    pub fn new(type_: StructTag, version: Version, contents: Vec<u8>) -> Option<Self> {
         id_opt(&contents).map(|_| Self {
             type_,
-            has_public_transfer,
             version,
             contents,
         })
@@ -222,10 +216,6 @@ impl MoveStruct {
 
     pub fn object_type(&self) -> &StructTag {
         &self.type_
-    }
-
-    pub fn has_public_transfer(&self) -> bool {
-        self.has_public_transfer
     }
 
     pub fn version(&self) -> Version {
