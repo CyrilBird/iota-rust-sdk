@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Update the fixtures for the transaction_fixtures() test.
@@ -77,7 +77,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     got_genesis = true;
                 }
             }
-            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_consensus_commit_prologue) => {
+            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_consensus_commit_prologue_v1) => {
                 if !got_consensus_commit_prologue_v1 {
                     write_bs64_tx_to_file(
                         &raw_tx_bytes_to_transaction_data_bytes(&tx.raw_transaction)?,
@@ -88,13 +88,24 @@ async fn main() -> Result<(), anyhow::Error> {
             }
             IotaTransactionBlockKind::EndOfEpochTransaction(end_of_epoch_tx) => {
                 for tx_kind in &end_of_epoch_tx.transactions {
-                    if let IotaEndOfEpochTransactionKind::ChangeEpoch(_change_epoch) = tx_kind {
-                        if !got_epoch_change {
-                            write_bs64_tx_to_file(
-                                &raw_tx_bytes_to_transaction_data_bytes(&tx.raw_transaction)?,
-                                "change-epoch",
-                            )?;
-                            got_epoch_change = true;
+                    match tx_kind {
+                        IotaEndOfEpochTransactionKind::ChangeEpoch(_change_epoch) => {
+                            if !got_epoch_change {
+                                write_bs64_tx_to_file(
+                                    &raw_tx_bytes_to_transaction_data_bytes(&tx.raw_transaction)?,
+                                    "change-epoch",
+                                )?;
+                                got_epoch_change = true;
+                            }
+                        }
+                        IotaEndOfEpochTransactionKind::ChangeEpochV2(_change_epoch_v2) => {
+                            if !got_epoch_change {
+                                write_bs64_tx_to_file(
+                                    &raw_tx_bytes_to_transaction_data_bytes(&tx.raw_transaction)?,
+                                    "change-epoch-v2",
+                                )?;
+                                got_epoch_change = true;
+                            }
                         }
                     }
                 }
