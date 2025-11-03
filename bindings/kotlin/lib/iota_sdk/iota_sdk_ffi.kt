@@ -2977,6 +2977,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -3681,6 +3683,8 @@ fun uniffi_iota_sdk_ffi_checksum_method_graphqlclient_is_tx_finalized(
 fun uniffi_iota_sdk_ffi_checksum_method_graphqlclient_is_tx_indexed_on_node(
 ): Short
 fun uniffi_iota_sdk_ffi_checksum_method_graphqlclient_latest_checkpoint_sequence_number(
+): Short
+fun uniffi_iota_sdk_ffi_checksum_method_graphqlclient_latest_system_state(
 ): Short
 fun uniffi_iota_sdk_ffi_checksum_method_graphqlclient_max_page_size(
 ): Short
@@ -5624,6 +5628,8 @@ fun uniffi_iota_sdk_ffi_fn_method_graphqlclient_is_tx_finalized(`ptr`: Pointer,`
 fun uniffi_iota_sdk_ffi_fn_method_graphqlclient_is_tx_indexed_on_node(`ptr`: Pointer,`digest`: Pointer,
 ): Long
 fun uniffi_iota_sdk_ffi_fn_method_graphqlclient_latest_checkpoint_sequence_number(`ptr`: Pointer,
+): Long
+fun uniffi_iota_sdk_ffi_fn_method_graphqlclient_latest_system_state(`ptr`: Pointer,
 ): Long
 fun uniffi_iota_sdk_ffi_fn_method_graphqlclient_max_page_size(`ptr`: Pointer,
 ): Long
@@ -8716,6 +8722,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iota_sdk_ffi_checksum_method_graphqlclient_latest_checkpoint_sequence_number() != 40336.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_iota_sdk_ffi_checksum_method_graphqlclient_latest_system_state() != 55005.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_iota_sdk_ffi_checksum_method_graphqlclient_max_page_size() != 44733.toShort()) {
@@ -22296,6 +22305,11 @@ public interface GraphQlClientInterface {
     suspend fun `latestCheckpointSequenceNumber`(): kotlin.ULong?
     
     /**
+     * Get the latest system state.
+     */
+    suspend fun `latestSystemState`(): DynamicFieldOutput
+    
+    /**
      * Lazily fetch the max page size
      */
     suspend fun `maxPageSize`(): kotlin.Int
@@ -23204,6 +23218,30 @@ open class GraphQlClient: Disposable, AutoCloseable, GraphQlClientInterface
         { future -> UniffiLib.INSTANCE.ffi_iota_sdk_ffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterOptionalULong.lift(it) },
+        // Error FFI converter
+        SdkFfiException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Get the latest system state.
+     */
+    @Throws(SdkFfiException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `latestSystemState`() : DynamicFieldOutput {
+        return uniffiRustCallAsync(
+        callWithPointer { thisPtr ->
+            UniffiLib.INSTANCE.uniffi_iota_sdk_ffi_fn_method_graphqlclient_latest_system_state(
+                thisPtr,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.INSTANCE.ffi_iota_sdk_ffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.INSTANCE.ffi_iota_sdk_ffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.INSTANCE.ffi_iota_sdk_ffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeDynamicFieldOutput.lift(it) },
         // Error FFI converter
         SdkFfiException.ErrorHandler,
     )

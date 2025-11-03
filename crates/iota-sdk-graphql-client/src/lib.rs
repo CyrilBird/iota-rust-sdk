@@ -581,6 +581,46 @@ impl Client {
             .and_then(|c| c.network_total_transactions))
     }
 
+    /// Get the latest system state.
+    pub async fn latest_system_state(&self) -> Result<DynamicFieldOutput> {
+        let mut max_version: u64 = 0;
+        let mut latest_field: Option<DynamicFieldOutput> = None;
+        let mut current_page = self
+            .dynamic_fields(ObjectId::SYSTEM.into(), Default::default())
+            .await?;
+
+        for field in current_page.data() {
+            if let Ok(version) = bcs::from_bytes::<u64>(&field.name.bcs) {
+                if version > max_version {
+                    max_version = version;
+                    latest_field = Some(field.clone());
+                }
+            }
+        }
+
+        while current_page.page_info().has_next_page {
+            let next_filter = PaginationFilter {
+                cursor: current_page.page_info().end_cursor.clone(),
+                limit: None,
+                direction: Direction::Forward,
+            };
+            current_page = self
+                .dynamic_fields(ObjectId::SYSTEM.into(), next_filter)
+                .await?;
+
+            for field in current_page.data() {
+                if let Ok(version) = bcs::from_bytes::<u64>(&field.name.bcs) {
+                    if version > max_version {
+                        max_version = version;
+                        latest_field = Some(field.clone());
+                    }
+                }
+            }
+        }
+
+        latest_field.ok_or_else(|| Error::from_error(Kind::Other, "system state not found"))
+    }
+
     // ===========================================================================
     // Coin API
     // ===========================================================================

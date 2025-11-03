@@ -178,6 +178,11 @@ impl GraphQLClient {
         Ok(self.0.read().await.total_transaction_blocks().await?)
     }
 
+    /// Get the latest system state.
+    pub async fn latest_system_state(&self) -> Result<DynamicFieldOutput> {
+        Ok(self.0.read().await.latest_system_state().await?.into())
+    }
+
     // ===========================================================================
     // Coin API
     // ===========================================================================
