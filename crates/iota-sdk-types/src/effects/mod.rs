@@ -197,6 +197,16 @@ impl InputSharedObject {
     }
 }
 
+#[derive(Clone)]
+pub struct ObjectChange {
+    pub id: ObjectId,
+    pub input_version: Option<Version>,
+    pub input_digest: Option<Digest>,
+    pub output_version: Option<Version>,
+    pub output_digest: Option<Digest>,
+    pub id_operation: IdOperation,
+}
+
 #[enum_dispatch]
 pub trait TransactionEffectsAPI {
     fn status(&self) -> &ExecutionStatus;
@@ -207,7 +217,13 @@ pub trait TransactionEffectsAPI {
     fn lamport_version(&self) -> Version;
     fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)>;
     fn input_shared_objects(&self) -> Vec<InputSharedObject>;
-
+    fn created(&self) -> Vec<(ObjectReference, Owner)>;
+    fn mutated(&self) -> Vec<(ObjectReference, Owner)>;
+    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)>;
+    fn deleted(&self) -> Vec<ObjectReference>;
+    fn unwrapped_then_deleted(&self) -> Vec<ObjectReference>;
+    fn wrapped(&self) -> Vec<ObjectReference>;
+    fn object_changes(&self) -> Vec<ObjectChange>;
     fn events_digest(&self) -> Option<&Digest>;
     fn dependencies(&self) -> &[Digest];
     fn transaction_digest(&self) -> &Digest;

@@ -6,7 +6,7 @@ use core::ops::{Deref, DerefMut};
 
 use crate::{
     Digest, EpochId, GasCostSummary, ObjectId, ObjectReference, Version,
-    effects::{InputSharedObject, TransactionEffectsAPI},
+    effects::{InputSharedObject, ObjectChange, TransactionEffectsAPI},
     execution_status::ExecutionStatus,
     object::Owner,
 };
@@ -108,6 +108,34 @@ impl<T: TransactionEffectsAPI> TransactionEffectsAPI for Box<T> {
 
     fn input_shared_objects(&self) -> Vec<InputSharedObject> {
         self.deref().input_shared_objects()
+    }
+
+    fn created(&self) -> Vec<(ObjectReference, Owner)> {
+        self.deref().created()
+    }
+
+    fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
+        self.deref().mutated()
+    }
+
+    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
+        self.deref().unwrapped()
+    }
+
+    fn deleted(&self) -> Vec<ObjectReference> {
+        self.deref().deleted()
+    }
+
+    fn unwrapped_then_deleted(&self) -> Vec<ObjectReference> {
+        self.deref().unwrapped_then_deleted()
+    }
+
+    fn wrapped(&self) -> Vec<ObjectReference> {
+        self.deref().wrapped()
+    }
+
+    fn object_changes(&self) -> Vec<ObjectChange> {
+        self.deref().object_changes()
     }
 
     fn events_digest(&self) -> Option<&Digest> {
@@ -241,6 +269,174 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     UnchangedSharedKind::PerEpochConfig => None,
                 },
             ))
+            .collect()
+    }
+
+    fn created(&self) -> Vec<(ObjectReference, Owner)> {
+        self.changed_objects
+            .iter()
+            .filter_map(|changed| {
+                match (
+                    &changed.input_state,
+                    &changed.output_state,
+                    &changed.id_operation,
+                ) {
+                    (
+                        ObjectIn::Missing,
+                        ObjectOut::ObjectWrite { digest, owner },
+                        IdOperation::Created,
+                    ) => Some((
+                        ObjectReference::new(changed.object_id, self.lamport_version, *digest),
+                        *owner,
+                    )),
+                    (
+                        ObjectIn::Missing,
+                        ObjectOut::PackageWrite { version, digest },
+                        IdOperation::Created,
+                    ) => Some((
+                        ObjectReference::new(changed.object_id, *version, *digest),
+                        Owner::Immutable,
+                    )),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
+        self.changed_objects
+            .iter()
+            .filter_map(
+                |changed| match (&changed.input_state, &changed.output_state) {
+                    (ObjectIn::Data { .. }, ObjectOut::ObjectWrite { digest, owner }) => Some((
+                        ObjectReference::new(changed.object_id, self.lamport_version, *digest),
+                        *owner,
+                    )),
+                    (ObjectIn::Data { .. }, ObjectOut::PackageWrite { version, digest }) => Some((
+                        ObjectReference::new(changed.object_id, *version, *digest),
+                        Owner::Immutable,
+                    )),
+                    _ => None,
+                },
+            )
+            .collect()
+    }
+
+    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
+        self.changed_objects
+            .iter()
+            .filter_map(|changed| {
+                match (
+                    &changed.input_state,
+                    &changed.output_state,
+                    &changed.id_operation,
+                ) {
+                    (
+                        ObjectIn::Missing,
+                        ObjectOut::ObjectWrite { digest, owner },
+                        IdOperation::None,
+                    ) => Some((
+                        ObjectReference::new(changed.object_id, self.lamport_version, *digest),
+                        *owner,
+                    )),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    fn deleted(&self) -> Vec<ObjectReference> {
+        self.changed_objects
+            .iter()
+            .filter_map(|changed| {
+                match (
+                    &changed.input_state,
+                    &changed.output_state,
+                    &changed.id_operation,
+                ) {
+                    (ObjectIn::Data { .. }, ObjectOut::Missing, IdOperation::Deleted) => {
+                        Some(ObjectReference::new(
+                            changed.object_id,
+                            self.lamport_version,
+                            Digest::OBJECT_DELETED,
+                        ))
+                    }
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    fn unwrapped_then_deleted(&self) -> Vec<ObjectReference> {
+        self.changed_objects
+            .iter()
+            .filter_map(|changed| {
+                match (
+                    &changed.input_state,
+                    &changed.output_state,
+                    &changed.id_operation,
+                ) {
+                    (ObjectIn::Missing, ObjectOut::Missing, IdOperation::Deleted) => {
+                        Some(ObjectReference::new(
+                            changed.object_id,
+                            self.lamport_version,
+                            Digest::OBJECT_DELETED,
+                        ))
+                    }
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    fn wrapped(&self) -> Vec<ObjectReference> {
+        self.changed_objects
+            .iter()
+            .filter_map(|changed| {
+                match (
+                    &changed.input_state,
+                    &changed.output_state,
+                    &changed.id_operation,
+                ) {
+                    (ObjectIn::Data { .. }, ObjectOut::Missing, IdOperation::None) => {
+                        Some(ObjectReference::new(
+                            changed.object_id,
+                            self.lamport_version,
+                            Digest::OBJECT_WRAPPED,
+                        ))
+                    }
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    fn object_changes(&self) -> Vec<ObjectChange> {
+        self.changed_objects
+            .iter()
+            .map(|changed| {
+                let input_version_digest = match &changed.input_state {
+                    ObjectIn::Missing => None,
+                    ObjectIn::Data {
+                        version, digest, ..
+                    } => Some((version, digest)),
+                };
+
+                let output_version_digest = match &changed.output_state {
+                    ObjectOut::Missing => None,
+                    ObjectOut::ObjectWrite { digest, .. } => Some((&self.lamport_version, digest)),
+                    ObjectOut::PackageWrite { version, digest } => Some((version, digest)),
+                };
+
+                ObjectChange {
+                    id: changed.object_id,
+                    input_version: input_version_digest.map(|k| *k.0),
+                    input_digest: input_version_digest.map(|k| *k.1),
+                    output_version: output_version_digest.map(|k| *k.0),
+                    output_digest: output_version_digest.map(|k| *k.1),
+                    id_operation: changed.id_operation,
+                }
+            })
             .collect()
     }
 
