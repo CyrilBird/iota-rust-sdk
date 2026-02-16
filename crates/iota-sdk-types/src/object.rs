@@ -133,6 +133,18 @@ impl Owner {
     }
 }
 
+impl PartialEq<Address> for Owner {
+    fn eq(&self, other: &Address) -> bool {
+        self.as_address_opt().map_or(false, |a| a == other)
+    }
+}
+
+impl PartialEq<ObjectId> for Owner {
+    fn eq(&self, other: &ObjectId) -> bool {
+        self.as_object_opt().map_or(false, |o| o == other)
+    }
+}
+
 impl std::fmt::Display for Owner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
