@@ -2,9 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use core::ops::{Deref, DerefMut};
+
 use crate::{
-    Digest, EpochId, GasCostSummary, ObjectId, Version, effects::TransactionEffectsAPI,
-    execution_status::ExecutionStatus, object::Owner,
+    Digest, EpochId, GasCostSummary, ObjectId, ObjectReference, Version,
+    effects::{InputSharedObject, TransactionEffectsAPI},
+    execution_status::ExecutionStatus,
+    object::Owner,
 };
 
 /// Version 1 of TransactionEffects
@@ -79,7 +83,7 @@ impl TransactionEffectsV1 {
 
 impl<T: TransactionEffectsAPI> TransactionEffectsAPI for Box<T> {
     fn status(&self) -> &ExecutionStatus {
-        (**self).status()
+        self.deref().status()
     }
 
     fn into_status(self) -> ExecutionStatus {
@@ -87,31 +91,60 @@ impl<T: TransactionEffectsAPI> TransactionEffectsAPI for Box<T> {
     }
 
     fn epoch(&self) -> EpochId {
-        (**self).epoch()
+        self.deref().epoch()
     }
 
     fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
-        (**self).modified_at_versions()
+        self.deref().modified_at_versions()
     }
 
     fn lamport_version(&self) -> Version {
-        (**self).lamport_version()
+        self.deref().lamport_version()
+    }
+
+    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
+        self.deref().old_object_metadata()
+    }
+
+    fn input_shared_objects(&self) -> Vec<InputSharedObject> {
+        self.deref().input_shared_objects()
     }
 
     fn events_digest(&self) -> Option<&Digest> {
-        (**self).events_digest()
+        self.deref().events_digest()
     }
 
     fn dependencies(&self) -> &[Digest] {
-        (**self).dependencies()
+        self.deref().dependencies()
     }
-    // fn transaction_digest(&self) -> &Digest {
-    // fn gas_cost_summary(&self) -> &GasCostSummary {
-    // fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)> {
-    // fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
-    // fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
-    // fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest {
-    // fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest> {
+
+    fn transaction_digest(&self) -> &Digest {
+        self.deref().transaction_digest()
+    }
+
+    fn gas_cost_summary(&self) -> &GasCostSummary {
+        self.deref().gas_cost_summary()
+    }
+
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)> {
+        self.deref().unchanged_shared_objects()
+    }
+
+    fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
+        self.deref_mut().status_mut_for_testing()
+    }
+
+    fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
+        self.deref_mut().gas_cost_summary_mut_for_testing()
+    }
+
+    fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest {
+        self.deref_mut().transaction_digest_mut_for_testing()
+    }
+
+    fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest> {
+        self.deref_mut().dependencies_mut_for_testing()
+    }
 }
 
 impl TransactionEffectsAPI for TransactionEffectsV1 {
@@ -144,6 +177,73 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         self.lamport_version
     }
 
+    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
+        self.changed_objects
+            .iter()
+            .filter_map(|change| {
+                if let ObjectIn::Data {
+                    version,
+                    digest,
+                    owner,
+                } = change.input_state
+                {
+                    Some((
+                        ObjectReference::new(change.object_id, version, digest),
+                        owner,
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn input_shared_objects(&self) -> Vec<InputSharedObject> {
+        self.changed_objects
+            .iter()
+            .filter_map(|changed| {
+                if let ObjectIn::Data {
+                    version,
+                    digest,
+                    owner: Owner::Shared { .. },
+                } = changed.input_state
+                {
+                    Some(InputSharedObject::Mutate(ObjectReference::new(
+                        changed.object_id,
+                        version,
+                        digest,
+                    )))
+                } else {
+                    None
+                }
+            })
+            .chain(self.unchanged_shared_objects.iter().filter_map(
+                |unchanged| match unchanged.kind {
+                    UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
+                        Some(InputSharedObject::ReadOnly(ObjectReference::new(
+                            unchanged.object_id,
+                            version,
+                            digest,
+                        )))
+                    }
+                    UnchangedSharedKind::MutateDeleted { version } => Some(
+                        InputSharedObject::MutateDeleted(unchanged.object_id, version),
+                    ),
+                    UnchangedSharedKind::ReadDeleted { version } => {
+                        Some(InputSharedObject::ReadDeleted(unchanged.object_id, version))
+                    }
+                    UnchangedSharedKind::Cancelled { version } => {
+                        Some(InputSharedObject::Cancelled(unchanged.object_id, version))
+                    }
+                    // We can not expose the per epoch config object as input shared object,
+                    // since it does not require sequencing, and hence shall not be considered
+                    // as a normal input shared object.
+                    UnchangedSharedKind::PerEpochConfig => None,
+                },
+            ))
+            .collect()
+    }
+
     fn events_digest(&self) -> Option<&Digest> {
         self.events_digest.as_ref()
     }
@@ -152,33 +252,36 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         &self.dependencies
     }
 
-    // fn transaction_digest(&self) -> &Digest {
-    //     &self.transaction_digest
-    // }
+    fn transaction_digest(&self) -> &Digest {
+        &self.transaction_digest
+    }
 
-    // fn gas_cost_summary(&self) -> &GasCostSummary {
-    //     &self.gas_used
-    // }
+    fn gas_cost_summary(&self) -> &GasCostSummary {
+        &self.gas_used
+    }
 
-    // fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)> {
-    //     self.unchanged_shared_objects.clone()
-    // }
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)> {
+        self.unchanged_shared_objects
+            .iter()
+            .map(|unchanged| (unchanged.object_id, unchanged.kind.clone()))
+            .collect()
+    }
 
-    // fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
-    //     &mut self.status
-    // }
+    fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
+        &mut self.status
+    }
 
-    // fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
-    //     &mut self.gas_used
-    // }
+    fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
+        &mut self.gas_used
+    }
 
-    // fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest {
-    //     &mut self.transaction_digest
-    // }
+    fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest {
+        &mut self.transaction_digest
+    }
 
-    // fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest> {
-    //     &mut self.dependencies
-    // }
+    fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest> {
+        &mut self.dependencies
+    }
 }
 
 /// Input/output state of an object that was changed during execution

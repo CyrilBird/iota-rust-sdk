@@ -10,7 +10,10 @@ pub use v1::{
     UnchangedSharedObject,
 };
 
-use crate::{Digest, EpochId, ObjectId, Version, execution_status::ExecutionStatus};
+use crate::{
+    Digest, EpochId, GasCostSummary, ObjectId, ObjectReference, Owner, Version,
+    execution_status::ExecutionStatus,
+};
 
 /// The output or effects of executing a transaction
 ///
@@ -165,21 +168,53 @@ mod serialization {
     }
 }
 
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum InputSharedObject {
+    Mutate(ObjectReference),
+    ReadOnly(ObjectReference),
+    ReadDeleted(ObjectId, Version),
+    MutateDeleted(ObjectId, Version),
+    Cancelled(ObjectId, Version),
+}
+
+impl InputSharedObject {
+    pub fn id_and_version(&self) -> (ObjectId, Version) {
+        let (object_id, version, ..) = self.object_ref().into_parts();
+        (object_id, version)
+    }
+
+    pub fn object_ref(&self) -> ObjectReference {
+        match self {
+            InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
+            InputSharedObject::ReadDeleted(id, version)
+            | InputSharedObject::MutateDeleted(id, version) => {
+                ObjectReference::new(*id, *version, Digest::OBJECT_DELETED)
+            }
+            InputSharedObject::Cancelled(id, version) => {
+                ObjectReference::new(*id, *version, Digest::OBJECT_CANCELLED)
+            }
+        }
+    }
+}
+
 #[enum_dispatch]
 pub trait TransactionEffectsAPI {
     fn status(&self) -> &ExecutionStatus;
     fn into_status(self) -> ExecutionStatus;
     fn epoch(&self) -> EpochId;
     fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
+    /// The version assigned to all output objects (apart from packages).
     fn lamport_version(&self) -> Version;
-    // more complex here
+    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)>;
+    fn input_shared_objects(&self) -> Vec<InputSharedObject>;
+
     fn events_digest(&self) -> Option<&Digest>;
     fn dependencies(&self) -> &[Digest];
-    // fn transaction_digest(&self) -> &Digest;
-    // fn gas_cost_summary(&self) -> &GasCostSummary;
-    // fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
-    // fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
-    // fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary;
-    // fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest;
-    // fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest>;
+    fn transaction_digest(&self) -> &Digest;
+    fn gas_cost_summary(&self) -> &GasCostSummary;
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)>;
+    fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
+    fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary;
+    fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest;
+    fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest>;
 }
