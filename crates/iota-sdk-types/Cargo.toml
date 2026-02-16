@@ -47,6 +47,7 @@ bnum.workspace = true
 bs58 = "0.5.1"
 bytestring = "1.5.0"
 derive_more = { version = "2.1.1", features = ["full"] }
+enum_dispatch = "0.3"
 hex.workspace = true
 paste.workspace = true
 roaring.workspace = true

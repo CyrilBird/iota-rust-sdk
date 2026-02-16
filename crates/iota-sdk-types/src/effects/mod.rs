@@ -4,12 +4,13 @@
 
 mod v1;
 
+use enum_dispatch::enum_dispatch;
 pub use v1::{
     ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffectsV1, UnchangedSharedKind,
     UnchangedSharedObject,
 };
 
-use crate::execution_status::ExecutionStatus;
+use crate::{Digest, EpochId, ObjectId, Version, execution_status::ExecutionStatus};
 
 /// The output or effects of executing a transaction
 ///
@@ -21,6 +22,7 @@ use crate::execution_status::ExecutionStatus;
 /// transaction-effects =  %x00 effects-v1
 ///                     =/ %x01 effects-v2
 /// ```
+#[enum_dispatch(TransactionEffectsAPI)]
 #[derive(Eq, PartialEq, Clone, Debug)]
 #[cfg_attr(
     feature = "schemars",
@@ -161,4 +163,23 @@ mod serialization {
             }
         }
     }
+}
+
+#[enum_dispatch]
+pub trait TransactionEffectsAPI {
+    fn status(&self) -> &ExecutionStatus;
+    fn into_status(self) -> ExecutionStatus;
+    fn epoch(&self) -> EpochId;
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
+    fn lamport_version(&self) -> Version;
+    // more complex here
+    fn events_digest(&self) -> Option<&Digest>;
+    fn dependencies(&self) -> &[Digest];
+    // fn transaction_digest(&self) -> &Digest;
+    // fn gas_cost_summary(&self) -> &GasCostSummary;
+    // fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
+    // fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
+    // fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary;
+    // fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest;
+    // fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest>;
 }

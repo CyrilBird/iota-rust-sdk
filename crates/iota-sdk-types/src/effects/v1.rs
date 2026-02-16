@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    Digest, EpochId, GasCostSummary, ObjectId, Version, execution_status::ExecutionStatus,
-    object::Owner,
+    Digest, EpochId, GasCostSummary, ObjectId, Version, effects::TransactionEffectsAPI,
+    execution_status::ExecutionStatus, object::Owner,
 };
 
 /// Version 1 of TransactionEffects
@@ -71,20 +71,114 @@ pub struct TransactionEffectsV1 {
 }
 
 impl TransactionEffectsV1 {
-    /// The status of the execution
-    pub fn status(&self) -> &ExecutionStatus {
-        &self.status
-    }
-
-    /// The epoch when this transaction was executed.
-    pub fn epoch(&self) -> EpochId {
-        self.epoch
-    }
-
     /// The gas used in this transaction.
     pub fn gas_summary(&self) -> &GasCostSummary {
         &self.gas_used
     }
+}
+
+impl<T: TransactionEffectsAPI> TransactionEffectsAPI for Box<T> {
+    fn status(&self) -> &ExecutionStatus {
+        (**self).status()
+    }
+
+    fn into_status(self) -> ExecutionStatus {
+        (*self).into_status()
+    }
+
+    fn epoch(&self) -> EpochId {
+        (**self).epoch()
+    }
+
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
+        (**self).modified_at_versions()
+    }
+
+    fn lamport_version(&self) -> Version {
+        (**self).lamport_version()
+    }
+
+    fn events_digest(&self) -> Option<&Digest> {
+        (**self).events_digest()
+    }
+
+    fn dependencies(&self) -> &[Digest] {
+        (**self).dependencies()
+    }
+    // fn transaction_digest(&self) -> &Digest {
+    // fn gas_cost_summary(&self) -> &GasCostSummary {
+    // fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)> {
+    // fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
+    // fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
+    // fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest {
+    // fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest> {
+}
+
+impl TransactionEffectsAPI for TransactionEffectsV1 {
+    fn status(&self) -> &ExecutionStatus {
+        &self.status
+    }
+
+    fn into_status(self) -> ExecutionStatus {
+        self.status
+    }
+
+    fn epoch(&self) -> EpochId {
+        self.epoch
+    }
+
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
+        self.changed_objects
+            .iter()
+            .filter_map(|change| {
+                if let ObjectIn::Data { version, .. } = &change.input_state {
+                    Some((change.object_id, *version))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn lamport_version(&self) -> Version {
+        self.lamport_version
+    }
+
+    fn events_digest(&self) -> Option<&Digest> {
+        self.events_digest.as_ref()
+    }
+
+    fn dependencies(&self) -> &[Digest] {
+        &self.dependencies
+    }
+
+    // fn transaction_digest(&self) -> &Digest {
+    //     &self.transaction_digest
+    // }
+
+    // fn gas_cost_summary(&self) -> &GasCostSummary {
+    //     &self.gas_used
+    // }
+
+    // fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)> {
+    //     self.unchanged_shared_objects.clone()
+    // }
+
+    // fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
+    //     &mut self.status
+    // }
+
+    // fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
+    //     &mut self.gas_used
+    // }
+
+    // fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest {
+    //     &mut self.transaction_digest
+    // }
+
+    // fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest> {
+    //     &mut self.dependencies
+    // }
 }
 
 /// Input/output state of an object that was changed during execution
