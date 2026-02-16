@@ -135,13 +135,13 @@ impl Owner {
 
 impl PartialEq<Address> for Owner {
     fn eq(&self, other: &Address) -> bool {
-        self.as_address_opt().map_or(false, |a| a == other)
+        self.as_address_opt() == Some(other)
     }
 }
 
 impl PartialEq<ObjectId> for Owner {
     fn eq(&self, other: &ObjectId) -> bool {
-        self.as_object_opt().map_or(false, |o| o == other)
+        self.as_object_opt() == Some(other)
     }
 }
 
