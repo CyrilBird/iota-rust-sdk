@@ -67,12 +67,16 @@ impl Digest {
 
     /// Decodes a digest from a Base58 encoded string.
     pub fn from_base58<T: AsRef<[u8]>>(base58: T) -> Result<Self, DigestParseError> {
-        let mut buf = [0; Self::LENGTH];
+        let base58 = base58.as_ref();
+        let mut buf = [0u8; Self::LENGTH];
 
-        bs58::decode(base58)
+        let bytes_written = bs58::decode(base58)
             .onto(&mut buf)
-            // TODO fix error to contain bs58 parse error
-            .map_err(|_| DigestParseError)?;
+            .map_err(DigestParseError::Base58)?;
+
+        if bytes_written != Self::LENGTH {
+            return Err(DigestParseError::InvalidLength(bytes_written));
+        }
 
         Ok(Self(buf))
     }
@@ -84,8 +88,9 @@ impl Digest {
 
     /// Generates a digest from bytes.
     pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, DigestParseError> {
-        <[u8; Self::LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| DigestParseError)
+        let bytes = bytes.as_ref();
+        <[u8; Self::LENGTH]>::try_from(bytes)
+            .map_err(|_| DigestParseError::InvalidLength(bytes.len()))
             .map(Self)
     }
 
@@ -206,20 +211,35 @@ impl<'de> serde_with::DeserializeAs<'de, [u8; Digest::LENGTH]> for ReadableDiges
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DigestParseError;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DigestParseError {
+    /// The input is not valid Base58.
+    Base58(bs58::decode::Error),
+    /// The decoded bytes have an incorrect length.
+    InvalidLength(usize),
+}
 
 impl std::fmt::Display for DigestParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "Unable to parse Digest (must be Base58 string of length {})",
-            44,
-        )
+        match self {
+            DigestParseError::Base58(e) => write!(f, "unable to parse digest: {e}"),
+            DigestParseError::InvalidLength(len) => write!(
+                f,
+                "unable to parse digest: expected {} bytes but got {len}",
+                Digest::LENGTH,
+            ),
+        }
     }
 }
 
-impl std::error::Error for DigestParseError {}
+impl std::error::Error for DigestParseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DigestParseError::Base58(e) => Some(e),
+            DigestParseError::InvalidLength(_) => None,
+        }
+    }
+}
 
 // Don't implement like the other digest type since this isn't intended to be
 // serialized
